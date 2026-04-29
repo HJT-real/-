@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>中国各省份 GDP 变形地图及发展曲线 (Cartogram & Line Chart)</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <style>
+        body { background-color: #f4f4f4; margin: 0; padding: 20px; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
+        .header { text-align: center; margin-bottom: 20px; }
+        h2 { color: #333; margin-bottom: 5px; }
+        .subtitle { color: #666; font-size: 14px; margin-bottom: 0; }
+        
+        .main-container {
+            display: flex;
+            width: 100%;
+            max-width: 1400px;
+            gap: 20px;
+        }
+
+        #cartogram-container { 
+            flex: 2; 
+            height: 700px; 
+            background: #fff; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+            position: relative; 
+        }
+        
+        #chart-container {
+            flex: 1;
+            height: 700px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        #line-chart {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 工具提示样式 */
+        .tooltip {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.95);
+            border: 1px solid #ccc;
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            pointer-events: none;
+            display: none;
+            z-index: 9999;
+            font-size: 14px;
+            white-space: nowrap; 
+        }
+
+        .province-label {
+            pointer-events: none;
+            fill: #333;
+            text-anchor: middle;
+            font-weight: bold;
+            dominant-baseline: central;
+        }
+        
+        .province-node {
+            stroke: #fff;
+            stroke-width: 1.5px;
+            opacity: 0.85;
+            transition: opacity 0.2s; 
+            cursor: pointer;
+        }
+     
+        .province-node:hover {
+            opacity: 1;
+            stroke: #333;
+        }
+        
+        .map-background {
+            fill: #e0e0e0;
+            stroke: #fff;
+            stroke-width: 1px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>中国各省份 GDP 变形地图及发展曲线</h2>
+        <p class="subtitle">（左侧圆圈面积代表当前 GDP 总量，将鼠标悬浮省份可查看 2015-2024 年发展曲线）</p>
+    </div>
+    
+    <div class="main-container">
+        <div id="cartogram-container"></div>
+        <div id="chart-container">
+            <div id="line-chart"></div>
+        </div>
+    </div>
+    
+    <div id="tooltip" class="tooltip"></div>
+
+    <script type="text/javascript">
+        // 从你的 CSV 数据中提取并结构化的历年 GDP 数据 (2015-2024)
+        const gdpHistoryData = {"上海": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [25123.45, 28178.65, 30632.99, 32679.87, 38155.32, 38700.58, 43214.9, 44652.8, 47218.7, 53926.7]}, "云南": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [13619.17, 14788.42, 16376.34, 17881.12, 23223.75, 24521.9, 27146.8, 28954.2, 30021.1, 31534.1]}, "内蒙古": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [17831.51, 18128.1, 16096.21, 17289.22, 17212.53, 17359.82, 20514.2, 23158.6, 24627.0, 26314.6]}, "北京": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [23014.59, 25669.13, 28014.94, 30319.98, 35371.28, 36102.55, 40269.6, 41610.9, 43760.7, 49843.1]}, "吉林": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [14063.13, 14776.8, 14944.53, 15074.62, 11726.82, 12311.32, 13235.5, 13070.2, 13531.2, 14361.5]}, "四川": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [30053.1, 32934.54, 36980.22, 40678.13, 46615.82, 48598.76, 53850.8, 56749.8, 60132.9, 64697.0]}, "天津": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [16538.19, 17885.39, 18549.19, 18809.64, 14104.28, 14083.73, 15695.0, 16311.3, 16737.3, 18024.3]}, "宁夏": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [2911.77, 3168.59, 3443.56, 3705.18, 3748.48, 3920.55, 4522.3, 5069.6, 5315.0, 5502.8]}, "安徽": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [22005.63, 24407.62, 27018.0, 30006.82, 37113.98, 38680.63, 42959.2, 45045.0, 47050.6, 50625.2]}, "山东": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [63002.33, 68024.49, 72634.15, 76469.67, 71067.53, 73129.0, 83095.9, 87435.1, 92068.7, 98565.8]}, "山西": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [12766.49, 13050.41, 15528.42, 16818.11, 17026.68, 17651.93, 22590.2, 25642.6, 25698.2, 25494.7]}, "广东": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [72812.55, 80854.91, 89705.23, 97277.77, 107671.07, 110760.94, 124369.7, 129118.6, 135673.2, 141633.8]}, "广西": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [16803.12, 18317.64, 18523.26, 20352.51, 21237.14, 22156.69, 24740.9, 26300.9, 27202.4, 28649.4]}, "新疆": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [9324.8, 9649.7, 10881.96, 12199.08, 13597.11, 13797.58, 15983.6, 17741.3, 19125.9, 20534.1]}, "江苏": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [70116.38, 77388.28, 85869.76, 92595.4, 99631.52, 102718.98, 116364.2, 122875.6, 128222.2, 137008.0]}, "江西": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [16723.78, 18499.0, 20006.31, 21984.78, 24757.5, 25691.5, 29619.7, 32074.7, 32200.1, 34202.5]}, "河北": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [29806.11, 32070.45, 34016.32, 36010.27, 35104.52, 36206.89, 40391.3, 42370.4, 43944.1, 47526.9]}, "河南": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [37002.16, 40471.79, 44552.83, 48055.86, 54259.2, 54997.07, 58887.4, 61345.1, 59132.4, 63590.0]}, "浙江": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [42886.49, 47251.36, 51768.26, 56197.15, 62351.74, 64613.34, 73515.8, 77715.4, 82553.2, 90130.6]}, "海南": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [3702.76, 4053.2, 4462.54, 4832.05, 5308.93, 5532.39, 6475.2, 6818.2, 7551.2, 7935.7]}, "湖北": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [29550.19, 32665.38, 35478.09, 39366.55, 45828.31, 43443.46, 50012.9, 53734.9, 55803.6, 60013.0]}, "湖南": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [28902.21, 31551.37, 33902.96, 36425.78, 39752.12, 41781.49, 46063.1, 48670.4, 50012.9, 53231.0]}, "甘肃": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [6790.32, 7200.37, 7459.9, 8246.07, 8718.3, 9016.7, 10243.3, 11201.6, 11863.8, 13002.9]}, "福建": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [25979.82, 28810.58, 32182.09, 35804.04, 42395.0, 43903.89, 48810.4, 53109.9, 54355.1, 57761.0]}, "西藏": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [1026.39, 1151.41, 1310.92, 1477.63, 1697.82, 1902.74, 2080.2, 2132.6, 2392.7, 2764.9]}, "贵州": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [10502.56, 11776.73, 13540.83, 14806.45, 16769.34, 17826.56, 19586.4, 20164.6, 20913.3, 22667.1]}, "辽宁": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [28669.02, 22246.9, 23409.24, 25315.35, 24909.45, 25114.96, 27584.1, 28975.1, 30209.4, 32612.7]}, "重庆": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [15717.27, 17740.59, 19424.73, 20363.19, 23605.77, 25002.79, 27894.0, 29129.0, 30145.8, 32193.2]}, "陕西": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [18021.86, 19399.59, 21898.81, 24438.32, 25793.17, 26181.86, 29801.0, 32772.7, 33786.1, 35538.8]}, "青海": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [2417.05, 2572.49, 2624.83, 2865.23, 2965.95, 3005.92, 3346.6, 3610.1, 3799.1, 3950.8]}, "黑龙江": {"years": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024], "gdp": [15083.67, 15386.09, 15902.68, 16361.62, 13612.68, 13698.5, 14879.2, 15901.0, 15883.9, 16476.9]}};
+        
+        // 初始化 ECharts
+        const chartDom = document.getElementById('line-chart');
+        const myChart = echarts.init(chartDom);
+        
+        // 默认空状态
+        myChart.setOption({
+            title: {
+                text: '请在左侧地图中点击或悬浮省份气泡',
+                left: 'center',
+                top: 'middle',
+                textStyle: { color: '#999', fontSize: 16, fontWeight: 'normal' }
+            }
+        });
+
+        // 图表更新函数，由 D3 悬浮事件触发
+        function updateChart(provinceName) {
+            const data = gdpHistoryData[provinceName];
+            if (data) {
+                myChart.setOption({
+                    title: {
+                        text: provinceName + ' 2015-2024年 GDP 发展曲线',
+                        left: 'center',
+                        top: 'top',
+                        textStyle: { color: '#333', fontSize: 18, fontWeight: 'bold' }
+                    },
+                    tooltip: {
+                        trigger: 'axis'
+                    },
+                    grid: {
+                        top: '15%',
+                        left: '10%',
+                        right: '5%',
+                        bottom: '10%',
+                        containLabel: true
+                    },
+                    xAxis: {
+                        type: 'category',
+                        name: '年份',
+                        data: data.years
+                    },
+                    yAxis: {
+                        type: 'value',
+                        name: 'GDP (亿元)'
+                    },
+                    series: [{
+                        data: data.gdp,
+                        name: 'GDP (亿元)',
+                        type: 'line',
+                        smooth: true,
+                        areaStyle: {
+                            opacity: 0.2
+                        },
+                        itemStyle: {
+                            color: '#3182bd'
+                        }
+                    }]
+                }, true); // 加上 true 表示覆盖原有配置（清除空白提示状态）
+            }
+        }
+
+        // --- 以下为原有的 D3.js 数据和气泡模拟逻辑，对 hover 事件进行了扩展 ---
+        const dataList = [
+            {name: '广东', value: 135673.2, lng: 113.23, lat: 23.16}, {name: '江苏', value: 122878.0, lng: 118.78, lat: 32.04},
+            {name: '山东', value: 92069.2, lng: 117.02, lat: 36.67}, {name: '浙江', value: 82550.0, lng: 120.19, lat: 30.26},
+            {name: '河南', value: 59135.2, lng: 113.65, lat: 34.76}, {name: '四川', value: 60133.0, lng: 104.06, lat: 30.67},
+            {name: '湖北', value: 55834.6, lng: 114.31, lat: 30.52}, {name: '福建', value: 54355.0, lng: 119.30, lat: 26.08},
+            {name: '湖南', value: 50013.0, lng: 113.00, lat: 28.21}, {name: '安徽', value: 47051.0, lng: 117.27, lat: 31.86},
+            {name: '上海', value: 47201.0, lng: 121.47, lat: 31.23}, {name: '河北', value: 43944.0, lng: 114.48, lat: 38.03},
+            {name: '北京', value: 43760.0, lng: 116.40, lat: 39.90}, {name: '陕西', value: 33713.0, lng: 108.95, lat: 34.27},
+            {name: '江西', value: 32275.0, lng: 115.89, lat: 28.68}, {name: '重庆', value: 30145.8, lng: 106.54, lat: 29.59},
+            {name: '辽宁', value: 30209.0, lng: 123.43, lat: 41.80}, {name: '云南', value: 30021.0, lng: 102.73, lat: 25.04},
+            {name: '广西', value: 27200.0, lng: 108.33, lat: 22.84}, {name: '山西', value: 25699.0, lng: 112.53, lat: 37.87},
+            {name: '内蒙古', value: 24680.0, lng: 111.65, lat: 40.82}, {name: '贵州', value: 20902.0, lng: 106.71, lat: 26.57},
+            {name: '新疆', value: 19129.0, lng: 87.68, lat: 43.77}, {name: '天津', value: 16737.0, lng: 117.20, lat: 39.13},
+            {name: '黑龙江', value: 15880.0, lng: 126.63, lat: 45.75}, {name: '吉林', value: 13530.0, lng: 125.35, lat: 43.88},
+            {name: '甘肃', value: 11865.0, lng: 103.73, lat: 36.03}, {name: '海南', value: 7552.0, lng: 110.35, lat: 20.02},
+            {name: '宁夏', value: 5315.0, lng: 106.27, lat: 38.47}, {name: '青海', value: 3799.0, lng: 101.74, lat: 36.56},
+            {name: '西藏', value: 2398.0, lng: 91.11, lat: 29.97}
+        ];
+
+        const width = 960, height = 700;
+        const svgContainer = d3.select('#cartogram-container')
+            .append('svg')
+            .attr('width', '100%')
+            .attr('height', '100%')
+            .attr('viewBox', `0 0 ${width} ${height}`);
+
+        const projection = d3.geoMercator()
+            .center([105, 38])
+            .scale(750)
+            .translate([width / 2, height / 2]);
+
+        const path = d3.geoPath().projection(projection);
+
+        const colorScale = d3.scaleSequential(d3.interpolateBlues).domain([0, 140000]); 
+        const radiusScale = d3.scaleSqrt().domain([0, 140000]).range([5, 60]); 
+
+        const nodes = dataList.map(d => {
+            const projected = projection([d.lng, d.lat]);
+            return {
+                ...d,
+                radius: radiusScale(d.value),
+                x: projected[0],
+                y: projected[1],
+                targetX: projected[0],
+                targetY: projected[1],
+            };
+        });
+
+        const tooltip = d3.select('#tooltip');
+
+        // 加载中国地图底图
+        d3.json('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json').then(geoData => {
+            svgContainer.append('g')
+                .selectAll('path')
+                .data(geoData.features)
+                .enter().append('path')
+                .attr('d', path)
+                .attr('class', 'map-background');
+            
+            drawBubbles();
+        }).catch(err => {
+            console.warn("无法加载背景地图:", err);
+            drawBubbles(); 
+        });
+
+        function drawBubbles() {
+            const circleGroups = svgContainer.append('g')
+                .selectAll('.province-group')
+                .data(nodes)
+                .enter().append('g')
+                .attr('class', 'province-group')
+                .on('mouseover', (event, d) => {
+                    // 【核心修改点】触发图表数据更新
+                    updateChart(d.name);
+                    
+                    // 原有的悬浮信息展示
+                    tooltip.style('display', 'block')
+                           .html(`<strong>${d.name}</strong><br/>当前 GDP: ${d.value.toFixed(1)} 亿元`);
+                })
+                .on('mousemove', (event) => {
+                    const tooltipNode = tooltip.node();
+                    const w = tooltipNode.offsetWidth;
+                    const h = tooltipNode.offsetHeight;
+                    
+                    let x = event.pageX + 15;
+                    let y = event.pageY + 15;
+                    
+                    if (event.clientX + 15 + w > window.innerWidth) {
+                        x = event.pageX - w - 15; 
+                    }
+                    if (event.clientY + 15 + h > window.innerHeight) {
+                        y = event.pageY - h - 15; 
+                    }
+
+                    tooltip.style('left', x + 'px')
+                           .style('top', y + 'px');
+                })
+                .on('mouseout', () => {
+                    tooltip.style('display', 'none');
+                });
+
+            circleGroups.append('circle')
+                .attr('r', d => d.radius)
+                .attr('fill', d => colorScale(d.value))
+                .attr('class', 'province-node');
+
+            circleGroups.append('text')
+                .text(d => d.name)
+                .attr('class', 'province-label')
+                .style('font-size', d => Math.max(10, d.radius / 2) + 'px') 
+                .style('display', d => d.radius < 12 ? 'none' : 'block'); 
+
+            // 变形气泡物理碰撞排布
+            const simulation = d3.forceSimulation(nodes)
+                .force('collide', d3.forceCollide().radius(d => d.radius + 1.5).iterations(3))
+                .force('x', d3.forceX(d => d.targetX).strength(0.15))
+                .force('y', d3.forceY(d => d.targetY).strength(0.15))
+                .on('tick', () => {
+                    circleGroups.attr('transform', d => `translate(${d.x},${d.y})`);
+                });
+            
+            // 响应窗口大小改变，重置 ECharts
+            window.addEventListener('resize', () => {
+                myChart.resize();
+            });
+        }
+    </script>
+</body>
+</html>

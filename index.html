@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2015-2024 中国GDP与产业结构数据可视化分析</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts-gl@2.0.9/dist/echarts-gl.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3352;
+    --accent: #4f8ef7;
+    --accent2: #f7994f;
+    --accent3: #4fc98e;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --north: #e74c3c;
+    --northeast: #3498db;
+    --east: #2ecc71;
+    --central: #f39c12;
+    --southwest: #9b59b6;
+    --northwest: #1abc9c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; display: flex; height: 100vh; overflow: hidden; }
+
+  /* ── 侧边栏 ── */
+  #sidebar {
+    width: 220px; min-width: 220px; background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow-y: auto;
+  }
+  #sidebar-header {
+    padding: 20px 16px 12px; border-bottom: 1px solid var(--border);
+  }
+  #sidebar-header h1 { font-size: 13px; color: var(--accent); font-weight: 700; line-height: 1.5; }
+  #sidebar-header p  { font-size: 11px; color: var(--text2); margin-top: 4px; }
+  .task-group { padding: 10px 0; }
+  .task-label {
+    padding: 6px 16px; font-size: 11px; color: var(--text2); font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+  .nav-item {
+    padding: 8px 16px 8px 24px; font-size: 12.5px; color: var(--text2);
+    cursor: pointer; border-left: 3px solid transparent; transition: all .15s;
+    line-height: 1.4;
+  }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: var(--surface2); color: var(--accent); border-left-color: var(--accent); }
+
+  /* ── 主区域 ── */
+  #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  #topbar {
+    padding: 14px 24px; background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+  }
+  #topbar h2 { font-size: 16px; font-weight: 700; }
+  #topbar p  { font-size: 12px; color: var(--text2); flex: 1; }
+  .tag {
+    padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;
+    background: #1e3a5f; color: var(--accent);
+  }
+  #content { flex: 1; overflow-y: auto; padding: 24px; }
+
+  /* ── 卡片 ── */
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    margin-bottom: 24px; overflow: hidden;
+  }
+  .chart-header { padding: 16px 20px 0; }
+  .chart-header h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .chart-header p  { font-size: 12px; color: var(--text2); }
+  .chart-body { padding: 8px 4px 16px; }
+  .echart { width: 100%; }
+
+  /* ── 静态图片画廊 ── */
+  .gallery-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px; padding: 4px;
+  }
+  .gallery-item {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+    overflow: hidden; cursor: pointer; transition: transform .2s, border-color .2s;
+  }
+  .gallery-item:hover { transform: translateY(-3px); border-color: var(--accent); }
+  .gallery-item img { width: 100%; display: block; background: #fff; }
+  .gallery-item .caption {
+    padding: 10px 12px; font-size: 12px; color: var(--text2);
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── 灯箱 ── */
+  #lightbox {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.88);
+    z-index: 1000; align-items: center; justify-content: center; flex-direction: column;
+  }
+  #lightbox.show { display: flex; }
+  #lightbox img { max-width: 92vw; max-height: 88vh; border-radius: 8px; object-fit: contain; }
+  #lightbox-close {
+    position: absolute; top: 20px; right: 28px; font-size: 28px;
+    color: #fff; cursor: pointer; opacity: .7;
+  }
+  #lightbox-close:hover { opacity: 1; }
+
+  /* ── 数据表格 ── */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .data-table th { padding: 8px 12px; background: var(--surface2); color: var(--text2); font-weight: 600; text-align: left; }
+  .data-table td { padding: 7px 12px; border-bottom: 1px solid var(--border); }
+  .data-table tr:hover td { background: var(--surface2); }
+
+  /* ── 概览卡片 ── */
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 18px 20px;
+  }
+  .stat-card .label { font-size: 11px; color: var(--text2); margin-bottom: 6px; }
+  .stat-card .value { font-size: 24px; font-weight: 700; color: var(--accent); }
+  .stat-card .sub   { font-size: 11px; color: var(--text2); margin-top: 4px; }
+  .stat-card.c2 .value { color: var(--accent2); }
+  .stat-card.c3 .value { color: var(--accent3); }
+  .stat-card.c4 .value { color: #c084fc; }
+
+  /* ── 两列布局 ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 1100px) { .two-col { grid-template-columns: 1fr; } }
+  .stat-grid { }
+  @media (max-width: 900px) { .stat-grid { grid-template-columns: repeat(2,1fr); } }
+
+  /* ── 滚动条 ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- 侧边栏 -->
+<nav id="sidebar">
+  <div id="sidebar-header">
+    <h1>中国GDP<br>数据可视化分析</h1>
+    <p>2015 — 2024</p>
+  </div>
+
+  <div class="task-group">
+    <div class="task-label">概览</div>
+    <div class="nav-item active" data-page="overview">📊 数据总览</div>
+  </div>
+
+  <div class="task-group">
+    <div class="task-label">任务一 · 总体趋势</div>
+    <div class="nav-item" data-page="t1-trend">GDP总量趋势</div>
+    <div class="nav-item" data-page="t1-structure">产业结构演变</div>
+    <div class="nav-item" data-page="t1-detail">细分行业分析</div>
+    <div class="nav-item" data-page="t1-gallery">静态图表库</div>
+  </div>
+
+  <div class="task-group">
+    <div class="task-label">任务二 · 地区对比</div>
+    <div class="nav-item" data-page="t2-rank">2024省份GDP排名</div>
+    <div class="nav-item" data-page="t2-industry">产业构成对比</div>
+    <div class="nav-item" data-page="t2-growth">增速与增量</div>
+    <div class="nav-item" data-page="t2-gallery">静态图表库</div>
+  </div>
+
+  <div class="task-group">
+    <div class="task-label">任务三 · 相关分析</div>
+    <div class="nav-item" data-page="t3-sunburst">构成旭日图</div>
+    <div class="nav-item" data-page="t3-corr">相关性分析</div>
+    <div class="nav-item" data-page="t3-scatter">多维散点</div>
+    <div class="nav-item" data-page="t3-gallery">静态图表库</div>
+  </div>
+
+  <div class="task-group">
+    <div class="task-label">🧊 3D 交互图表</div>
+    <div class="nav-item" data-page="t3d-surface">省份×年份 3D曲面</div>
+    <div class="nav-item" data-page="t3d-scatter">三维经济散点</div>
+    <div class="nav-item" data-page="t3d-bar">省份产业 3D柱状</div>
+  </div>
+</nav>
+
+<!-- 主区域 -->
+<div id="main">
+  <div id="topbar">
+    <h2 id="page-title">数据总览</h2>
+    <p id="page-desc">2015-2024年中国GDP与产业结构完整数据集</p>
+    <span class="tag">国家统计局数据</span>
+  </div>
+  <div id="content"></div>
+</div>
+
+<!-- 灯箱 -->
+<div id="lightbox">
+  <span id="lightbox-close">✕</span>
+  <img id="lightbox-img" src="" alt="">
+</div>
+
+<script>
+// ============================================================
+// 数据
+// ============================================================
+const YEARS = [2015,2016,2017,2018,2019,2020,2021,2022,2023,2024];
+
+const NATIONAL = {
+  gdp:  [702511.5,761193,847382.9,936010.1,1005872.4,1034867.6,1173823,1234029.4,1294271.7,1349083.5],
+  ind1: [57774.6,60139.2,62099.5,64745.2,70473.6,78030.9,83216.5,88207,89169.1,91413.9],
+  ind2: [281338.9,295427.8,331580.5,364835.2,379860,381985.8,447138.2,467629.6,475936.1,492087.1],
+  ind3: [363397.9,405626,453702.9,506429.8,555538.9,574850.9,643468.4,678192.7,729166.5,765582.5],
+  p1:   [8.2,7.9,7.3,6.9,7.0,7.5,7.1,7.1,6.9,6.8],
+  p2:   [40.0,38.8,39.1,39.0,37.8,36.9,38.1,37.9,36.8,36.5],
+  p3:   [51.7,53.3,53.5,54.1,55.2,55.5,54.8,55.0,56.3,56.7],
+  percapita: [50912,54849,60691,66726,71453,73338,83111,87385,91746,95749],
+  industry: {
+    农林牧渔: [59852.6,62451,64660,67558.7,73576.9,81396.5,86994.8,92576.8,93967,96612.9],
+    工业:     [234968.9,245406.4,275119.3,301089.3,311011.2,311231.2,369903.7,388651.6,392183,405442.1],
+    建筑业:   [47761.3,51498.9,57905.6,65493,70789.8,72751.2,79269.8,81439.8,86640.6,89949.3],
+    批零:     [67719.6,73724.5,81156.6,88903.7,96864.9,98569.1,114358,122177.5,130809.7,137980.9],
+    交通运输: [30737.9,33259.8,37383.7,40631.6,42611.1,40712.1,48439,50967.7,56438.3,59232.2],
+    住宿餐饮: [12306.1,13607.8,15056,16520.6,18249.2,15855.5,19064.4,19146.2,23084.2,24728.8],
+    金融业:   [56299.8,59964,64844.3,70610.3,75113.7,81159,86409.2,88051.5,93926.9,98544.2],
+    房地产:   [53732.3,62066.4,69257.1,77632.9,83320.7,85533.9,90397.5,88015.2,87981.5,84565.2],
+    其他:     [139132.8,159214.1,182000.3,207569.9,234334.9,247659,278986.7,303003,329240.5,352027.9],
+  }
+};
+
+// 2024年各省GDP（万亿排序）
+const PROV2024 = [
+  {name:'广东',gdp:141633.8,ind1:5837,ind2:54365.5,ind3:81431.3,r:'东部'},
+  {name:'江苏',gdp:137008,ind1:5245.2,ind2:59180.1,ind3:72582.8,r:'东部'},
+  {name:'山东',gdp:98565.8,ind1:6616.9,ind2:39608.6,ind3:52340.3,r:'东部'},
+  {name:'浙江',gdp:90130.6,ind1:2586.4,ind2:34782.7,ind3:52761.4,r:'东部'},
+  {name:'河南',gdp:63590,ind1:5491.4,ind2:24346.2,ind3:33752.4,r:'中部'},
+  {name:'四川',gdp:64697,ind1:5619.9,ind2:22816.9,ind3:36260.2,r:'西部'},
+  {name:'湖北',gdp:60013,ind1:5462.2,ind2:21573.8,ind3:32977,r:'中部'},
+  {name:'福建',gdp:57761,ind1:3287.7,ind2:24713.2,ind3:29760.2,r:'东部'},
+  {name:'上海',gdp:53926.7,ind1:99.7,ind2:11637.6,ind3:42189.4,r:'东部'},
+  {name:'湖南',gdp:53231,ind1:4899.7,ind2:19534.6,ind3:28796.7,r:'中部'},
+  {name:'安徽',gdp:50625.2,ind1:3565.6,ind2:19607.5,ind3:27452.1,r:'中部'},
+  {name:'北京',gdp:49843.1,ind1:116.4,ind2:7226.8,ind3:42499.9,r:'东部'},
+  {name:'河北',gdp:47526.9,ind1:4522.3,ind2:17470.5,ind3:25534.1,r:'东部'},
+  {name:'陕西',gdp:35538.8,ind1:2622,ind2:14519,ind3:18397.8,r:'西部'},
+  {name:'江西',gdp:34202.5,ind1:2605.1,ind2:13688.5,ind3:17908.8,r:'中部'},
+  {name:'重庆',gdp:32193.2,ind1:2135.8,ind2:11690.7,ind3:18366.7,r:'西部'},
+  {name:'云南',gdp:31534.1,ind1:4192.9,ind2:10330,ind3:17011.1,r:'西部'},
+  {name:'辽宁',gdp:32612.7,ind1:2565.7,ind2:11503.3,ind3:18543.7,r:'东北'},
+  {name:'广西',gdp:28649.4,ind1:4751.5,ind2:9301,ind3:14596.9,r:'西部'},
+  {name:'贵州',gdp:22667.1,ind1:2971.7,ind2:7097.6,ind3:12597.9,r:'西部'},
+  {name:'内蒙古',gdp:26314.6,ind1:2872.6,ind2:11604.4,ind3:11837.6,r:'西部'},
+  {name:'新疆',gdp:20534.1,ind1:2572,ind2:8135.9,ind3:9826.2,r:'西部'},
+  {name:'山西',gdp:25494.7,ind1:1392.5,ind2:11021.5,ind3:13080.7,r:'中部'},
+  {name:'黑龙江',gdp:16476.9,ind1:3203.3,ind2:4147.3,ind3:9126.2,r:'东北'},
+  {name:'吉林',gdp:14361.5,ind1:1589.8,ind2:4577.6,ind3:8193.8,r:'东北'},
+  {name:'天津',gdp:18024.3,ind1:284.3,ind2:6214.3,ind3:11525.8,r:'东部'},
+  {name:'甘肃',gdp:13002.9,ind1:1621.7,ind2:4436.4,ind3:6944.8,r:'西部'},
+  {name:'海南',gdp:7935.7,ind1:1627.6,ind2:1497.9,ind3:4810.1,r:'东部'},
+  {name:'宁夏',gdp:5502.8,ind1:451.2,ind2:2335.4,ind3:2716.2,r:'西部'},
+  {name:'青海',gdp:3950.8,ind1:359.1,ind2:1662.4,ind3:1929.3,r:'西部'},
+  {name:'西藏',gdp:2764.9,ind1:247.5,ind2:1016.1,ind3:1501.4,r:'西部'},
+];
+
+// 2015年各省GDP（用于增速计算）
+const PROV2015 = {
+  '广东':72812.55,'江苏':70116.38,'山东':63002.33,'浙江':42886.49,'河南':37002.16,
+  '四川':30053.1,'湖北':29550.19,'福建':25979.82,'上海':25123.45,'湖南':28902.21,
+  '安徽':22005.63,'北京':23014.59,'河北':29806.11,'陕西':18021.86,'江西':16723.78,
+  '重庆':15717.27,'云南':13619.17,'辽宁':28669.02,'广西':16803.12,'贵州':10502.56,
+  '内蒙古':17831.51,'新疆':9324.8,'山西':12766.49,'黑龙江':15083.67,'吉林':14063.13,
+  '天津':16538.19,'甘肃':6790.32,'海南':3702.76,'宁夏':2911.77,'青海':2417.05,'西藏':1026.39
+};
+
+// 各省10年数据（部分省份代表）
+const PROV_SERIES = {
+  '广东':[72812.55,80854.91,89705.23,97277.77,107671.07,110760.94,124369.7,129118.6,135673.2,141633.8],
+  '江苏':[70116.38,77388.28,85869.76,92595.4,99631.52,102718.98,116364.2,122875.6,128222.2,137008],
+  '山东':[63002.33,68024.49,72634.15,76469.67,71067.53,73129,83095.9,87435.1,92068.7,98565.8],
+  '浙江':[42886.49,47251.36,51768.26,56197.15,62351.74,64613.34,73515.8,77715.4,82553.2,90130.6],
+  '四川':[30053.1,32934.54,36980.22,40678.13,46615.82,48598.76,53850.8,56749.8,60132.9,64697],
+  '湖北':[29550.19,32665.38,35478.09,39366.55,45828.31,43443.46,50012.9,53734.9,55803.6,60013],
+  '河南':[37002.16,40471.79,44552.83,48055.86,54259.2,54997.07,58887.4,61345.1,59132.4,63590],
+  '北京':[23014.59,25669.13,28014.94,30319.98,35371.28,36102.55,40269.6,41610.9,43760.7,49843.1],
+  '上海':[25123.45,28178.65,30632.99,32679.87,38155.32,38700.58,43214.9,44652.8,47218.7,53926.7],
+  '贵州':[10502.56,11776.73,13540.83,14806.45,16769.34,17826.56,19586.4,20164.6,20913.3,22667.1],
+  '西藏':[1026.39,1151.41,1310.92,1477.63,1697.82,1902.74,2080.2,2132.6,2392.7,2764.9],
+};
+
+const RC = {东部:'#e74c3c',中部:'#2ecc71',西部:'#9b59b6',东北:'#3498db'};
+const IC = ['#4fc98e','#4f8ef7','#f7994f'];
+
+// ============================================================
+// 渲染函数
+// ============================================================
+const pages = {};
+
+// 概览页
+pages['overview'] = () => `
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="label">2024年全国GDP</div>
+    <div class="value">134.9<span style="font-size:14px;font-weight:400">万亿</span></div>
+    <div class="sub">较2015年增长 92%</div>
+  </div>
+  <div class="stat-card c2">
+    <div class="label">十年增量</div>
+    <div class="value">64.7<span style="font-size:14px;font-weight:400">万亿</span></div>
+    <div class="sub">年均增速约 7.5%</div>
+  </div>
+  <div class="stat-card c3">
+    <div class="label">第三产业占比</div>
+    <div class="value">56.7<span style="font-size:14px;font-weight:400">%</span></div>
+    <div class="sub">2015年为51.7%，+5pp</div>
+  </div>
+  <div class="stat-card c4">
+    <div class="label">人均GDP</div>
+    <div class="value">9.57<span style="font-size:14px;font-weight:400">万元</span></div>
+    <div class="sub">超过1.3万美元</div>
+  </div>
+</div>
+<div class="two-col">
+  <div class="chart-card">
+    <div class="chart-header"><h3>GDP总量 & 增速（2015-2024）</h3></div>
+    <div class="chart-body"><div class="echart" id="ov-gdp" style="height:280px"></div></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-header"><h3>三产业占比演变</h3></div>
+    <div class="chart-body"><div class="echart" id="ov-pie" style="height:280px"></div></div>
+  </div>
+</div>
+<div class="chart-card">
+  <div class="chart-header"><h3>2024年各省GDP排名（万亿元）</h3></div>
+  <div class="chart-body"><div class="echart" id="ov-bar" style="height:380px"></div></div>
+</div>
+`;
+
+// 任务一：GDP趋势
+pages['t1-trend'] = () => `
+<div class="chart-card">
+  <div class="chart-header"><h3>全国GDP总量趋势（2015-2024）</h3><p>年度GDP及同比增速，折线+柱状组合图</p></div>
+  <div class="chart-body"><div class="echart" id="t1-gdp-trend" style="height:380px"></div></div>
+</div>
+<div class="chart-card">
+  <div class="chart-header"><h3>人均GDP趋势</h3><p>2019年突破7万元（约1万美元），2024年达9.57万元</p></div>
+  <div class="chart-body"><div class="echart" id="t1-percap" style="height:320px"></div></div>
+</div>
+`;
+
+// 任务一：产业结构
+pages['t1-structure'] = () => `
+<div class="chart-card">
+  <div class="chart-header"><h3>三产业增加值堆叠面积图</h3><p>第三产业稳步扩张，第二产业比重逐年下降</p></div>
+  <div class="chart-body"><div class="echart" id="t1-stacked" style="height:360px"></div></div>
+</div>
+<div class="chart-card">
+  <div class="chart-header"><h3>三产业占比变化</h3><p>折线对比，直观展示结构转型路径</p></div>
+  <div class="chart-body"><div class="echart" id="t1-ratio" style="height:320px"></div></div>
+</div>
+`;
+
+// 任务一：细分行业
+pages['t1-detail'] = () => `
+<div class="chart-card">
+  <div class="chart-header"><h3>细分行业增加值（2015-2024，亿元）</h3><p>可点击图例切换显示行业，悬停查看数值</p></div>
+  <div class="chart-body"><div class="echart" id="t1-ind-line" style="height:420px"></div></div>
+</div>
+<div class="chart-card">
+  <div class="chart-header"><h3>2024年细分行业结构饼图</h3></div>
+  <div class="chart-body"><div class="echart" id="t1-ind-pie" style="height:360px"></div></div>
+</div>
+`;
+
+// 任务一：静态图库
+pages['t1-gallery'] = () => `
+<div class="gallery-grid">
+  ${[
+    ['任务一/图表1_GDP总量趋势.png','GDP总量趋势折线图'],
+    ['任务一/图表2_GDP产业结构演变.png','GDP产业结构演变堆叠图'],
+    ['任务一/图表3_GDP年增长率.png','GDP年增长率柱状图'],
+    ['任务一/图表4_人均GDP趋势.png','人均GDP趋势'],
+    ['任务一/图表5_GDP累计增长倍数.png','GDP累计增长倍数'],
+    ['任务一/图表6_产业增长贡献率.png','产业增长贡献率'],
+  ].map(([src,cap])=>`<div class="gallery-item" onclick="lightbox('${src}')">
+    <img src="${src}" alt="${cap}" loading="lazy">
+    <div class="caption">${cap}</div>
+  </div>`).join('')}
+</div>`;
+
+// 任务二：排名
+pages['t2-rank'] = () => `
+<div class="chart-card">
+  <div class="chart-header">
+    <h3>2024年各省GDP总量排名</h3>
+    <p>点击柱子高亮；可按地区筛选</p>
+  </div>
+  <div class="chart-body" style="display:flex;gap:8px;padding:8px 16px 4px;">
+    <button class="filter-btn active" data-region="all" onclick="filterProvBar(this,'all')">全部</button>
+    <button class="filter-btn" data-region="东部" onclick="filterProvBar(this,'东部')">东部</button>
+    <button class="filter-btn" data-region="中部" onclick="filterProvBar(this,'中部')">中部</button>
+    <button class="filter-btn" data-region="西部" onclick="filterProvBar(this,'西部')">西部</button>
+    <button class="filter-btn" data-region="东北" onclick="filterProvBar(this,'东北')">东北</button>
+  </div>
+  <div class="chart-body"><div class="echart" id="t2-prov-bar" style="height:680px"></div></div>
+</div>
+`;
+
+// 任务二：产业构成
+pages['t2-industry'] = () => `
+<div class="chart-card">
+  <div class="chart-header"><h3>2024年各省产业构成对比（堆叠条形）</h3><p>颜色：绿=第一产业，蓝=第二产业，橙=第三产业</p></div>
+  <div class="chart-body"><div class="echart" id="t2-ind-stack" style="height:500px"></div></div>
+</div>
+`;
+
+// 任务二：增速
+pages['t2-growth'] = () => `
+<div class="two-col">
+  <div class="chart-card">
+    <div class="chart-header"><h3>各省2015-2024 GDP增速（%）</h3><p>颜色反映增速高低</p></div>
+    <div class="chart-body"><div class="echart" id="t2-growth-bar" style="height:460px"></div></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-header"><h3>代表省份GDP发展折线</h3><p>可点击图例显示/隐藏</p></div>
+    <div class="chart-body"><div class="echart" id="t2-prov-line" style="height:460px"></div></div>
+  </div>
+</div>
+`;
+
+// 任务二：静态图库
+pages['t2-gallery'] = () => `
+<div class="gallery-grid">
+  ${[
+    ['任务二/图表1_2024各省GDP总量对比.png','2024各省GDP总量对比'],
+    ['任务二/图表2_2024各省GDP产业构成对比.png','2024各省GDP产业构成对比'],
+    ['任务二/图表3_2015与2024各省GDP对比.png','2015与2024各省GDP对比（哑铃图）'],
+    ['任务二/图表4_2024各省GDP地图.png','2024各省GDP地图'],
+    ['任务二/图表5_变形地图GDP发展曲线.png','变形地图GDP发展曲线'],
+    ['任务二/图表6_省份GDP排名斜率图.png','省份GDP排名斜率图'],
+    ['任务二/图表7_南丁格尔玫瑰图.png','南丁格尔玫瑰图'],
+    ['任务二/图表8_各省GDP份额演变.png','各省GDP份额演变堆叠面积'],
+    ['任务二/图表9_GDP增量瀑布图.png','GDP增量瀑布图'],
+    ['任务二/图表10_地图气泡叠加图.png','地图气泡叠加图'],
+  ].map(([src,cap])=>`<div class="gallery-item" onclick="lightbox('${src}')">
+    <img src="${src}" alt="${cap}" loading="lazy">
+    <div class="caption">${cap}</div>
+  </div>`).join('')}
+</div>`;
+
+// 任务三：旭日图
+pages['t3-sunburst'] = () => `
+<div class="chart-card">
+  <div class="chart-header"><h3>2024年各省GDP与全国构成旭日图</h3><p>内环=地区，中环=省份，外环=三产业，点击可下钻</p></div>
+  <div class="chart-body"><div class="echart" id="t3-sun" style="height:600px"></div></div>
+</div>
+`;
+
+// 任务三：相关分析
+pages['t3-corr'] = () => `
+<div class="two-col">
+  <div class="chart-card">
+    <div class="chart-header"><h3>GDP增速 vs 第三产业占比变化</h3><p>各省2015→2024，颜色=地区</p></div>
+    <div class="chart-body"><div class="echart" id="t3-sc1" style="height:380px"></div></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-header"><h3>GDP增速 vs 第二产业占比变化</h3></div>
+    <div class="chart-body"><div class="echart" id="t3-sc2" style="height:380px"></div></div>
+  </div>
+</div>
+<div class="chart-card">
+  <div class="chart-header"><h3>2024年各省相关指标热力矩阵</h3><p>颜色越深=越高，横向比较各指标省际差异</p></div>
+  <div class="chart-body"><div class="echart" id="t3-heat" style="height:420px"></div></div>
+</div>
+`;
+
+// 任务三：多维散点
+pages['t3-scatter'] = () => `
+<div class="chart-card">
+  <div class="chart-header"><h3>各省经济发展多维气泡图</h3><p>X=人均GDP，Y=GDP增速，气泡大小=GDP总量，颜色=地区；悬停查看详情</p></div>
+  <div class="chart-body"><div class="echart" id="t3-bubble" style="height:500px"></div></div>
+</div>
+`;
+
+// 任务三：静态图库
+pages['t3-gallery'] = () => `
+<div class="gallery-grid">
+  ${[
+    ['任务三/图表1_GDP构成旭日图.png','GDP构成旭日图'],
+    ['任务三/图表2_GDP与产业结构相关性散点矩阵.png','GDP与产业结构相关性散点矩阵'],
+    ['任务三/图表3_各省GDP发展相关性热力图.png','各省GDP发展相关性热力图'],
+    ['任务三/图表4_平行坐标图.png','多维平行坐标图'],
+    ['任务三/图表5_桑基图.png','GDP流向桑基图'],
+    ['任务三/图表6_PCA双标图.png','PCA双标图'],
+    ['任务三/图表7_3D曲面图.png','3D曲面地形图'],
+    ['任务三/图表8_3D散点图.png','3D三维散点图'],
+  ].map(([src,cap])=>`<div class="gallery-item" onclick="lightbox('${src}')">
+    <img src="${src}" alt="${cap}" loading="lazy">
+    <div class="caption">${cap}</div>
+  </div>`).join('')}
+</div>`;
+
+// ============================================================
+// 图表初始化
+// ============================================================
+// ── 3D 页面模板 ──
+pages['t3d-surface'] = () => `
+<div class="chart-card">
+  <div class="chart-header">
+    <h3>各省GDP规模时序地形图（2015-2024）</h3>
+    <p>X轴=年份，Y轴=省份（东→中→西），Z轴=GDP总量（万亿元）；鼠标拖拽旋转，滚轮缩放</p>
+  </div>
+  <div class="chart-body"><div class="echart" id="t3d-surf" style="height:600px"></div></div>
+</div>`;
+
+pages['t3d-scatter'] = () => `
+<div class="chart-card">
+  <div class="chart-header">
+    <h3>各省经济三维散点图</h3>
+    <p>X=人均GDP（万元），Y=十年增速（%），Z=第三产业占比（%），点大小∝GDP总量；拖拽旋转查看不同视角</p>
+  </div>
+  <div class="chart-body"><div class="echart" id="t3d-scat" style="height:600px"></div></div>
+</div>`;
+
+pages['t3d-bar'] = () => `
+<div class="chart-card">
+  <div class="chart-header">
+    <h3>2024年各省三产业 3D柱状图</h3>
+    <p>X轴=省份，Y轴=三产业（第一/二/三），Z轴=增加值（亿元）；拖拽旋转查看</p>
+  </div>
+  <div class="chart-body" style="padding:8px 16px 4px;display:flex;gap:8px;">
+    <button class="filter-btn active" onclick="set3dBarView(this,30,-60)">默认视角</button>
+    <button class="filter-btn" onclick="set3dBarView(this,10,-80)">俯视</button>
+    <button class="filter-btn" onclick="set3dBarView(this,45,30)">侧视</button>
+  </div>
+  <div class="chart-body"><div class="echart" id="t3d-bar3" style="height:580px"></div></div>
+</div>`;
+
+const echartsMap = {};
+function ec(id) {
+  if (!echartsMap[id]) echartsMap[id] = echarts.init(document.getElementById(id), 'dark');
+  return echartsMap[id];
+}
+
+const BASE = { backgroundColor:'transparent', textStyle:{color:'#94a3b8'} };
+
+function initCharts(page) {
+  if (page === 'overview') {
+    // GDP + 增速
+    const rates = NATIONAL.gdp.map((v,i)=> i===0 ? null : +((v-NATIONAL.gdp[i-1])/NATIONAL.gdp[i-1]*100).toFixed(2));
+    ec('ov-gdp').setOption({...BASE, tooltip:{trigger:'axis'},
+      legend:{data:['GDP(万亿)','同比增速(%)'],textStyle:{color:'#94a3b8'}},
+      xAxis:{data:YEARS,axisLine:{lineStyle:{color:'#2e3352'}}},
+      yAxis:[{name:'万亿元',nameTextStyle:{color:'#94a3b8'},axisLine:{lineStyle:{color:'#2e3352'}}},
+             {name:'%',nameTextStyle:{color:'#94a3b8'},axisLine:{lineStyle:{color:'#2e3352'}}}],
+      series:[
+        {name:'GDP(万亿)',type:'bar',data:NATIONAL.gdp.map(v=>(v/10000).toFixed(2)),
+         itemStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#4f8ef7'},{offset:1,color:'#1a3a6e'}])},barMaxWidth:40},
+        {name:'同比增速(%)',type:'line',yAxisIndex:1,data:rates,
+         lineStyle:{color:'#f7994f',width:2},itemStyle:{color:'#f7994f'},symbol:'circle',symbolSize:6},
+      ]
+    });
+
+    // 饼图（最新两年对比）
+    ec('ov-pie').setOption({...BASE, tooltip:{trigger:'item',formatter:'{b}: {c}%'},
+      legend:{orient:'vertical',right:10,textStyle:{color:'#94a3b8'}},
+      series:[{
+        type:'pie',radius:['35%','65%'],center:['45%','55%'],
+        label:{color:'#94a3b8'},
+        data:[
+          {name:'第一产业',value:NATIONAL.p1[9],itemStyle:{color:'#4fc98e'}},
+          {name:'第二产业',value:NATIONAL.p2[9],itemStyle:{color:'#4f8ef7'}},
+          {name:'第三产业',value:NATIONAL.p3[9],itemStyle:{color:'#f7994f'}},
+        ]
+      }]
+    });
+
+    // 省份柱状
+    const sorted = [...PROV2024].sort((a,b)=>a.gdp-b.gdp);
+    ec('ov-bar').setOption({...BASE, tooltip:{trigger:'axis',formatter:p=>`${p[0].name}: ${(p[0].value/10000).toFixed(2)}万亿`},
+      grid:{left:60,right:16,top:10,bottom:10,containLabel:true},
+      xAxis:{type:'value',axisLine:{lineStyle:{color:'#2e3352'}}},
+      yAxis:{type:'category',data:sorted.map(d=>d.name),axisLine:{lineStyle:{color:'#2e3352'}},axisLabel:{fontSize:11}},
+      series:[{type:'bar',data:sorted.map(d=>({value:d.gdp,itemStyle:{color:RC[d.r]||'#4f8ef7'}})),barMaxWidth:18,label:{show:false}}]
+    });
+  }
+
+  if (page === 't1-trend') {
+    const rates = NATIONAL.gdp.map((v,i)=> i===0 ? 0 : +((v-NATIONAL.gdp[i-1])/NATIONAL.gdp[i-1]*100).toFixed(2));
+    ec('t1-gdp-trend').setOption({...BASE,
+      tooltip:{trigger:'axis',axisPointer:{type:'cross'}},
+      legend:{data:['GDP总量(万亿)','同比增速(%)'],textStyle:{color:'#94a3b8'},top:0},
+      grid:{top:40,bottom:30,left:60,right:60,containLabel:true},
+      xAxis:{data:YEARS},
+      yAxis:[
+        {name:'GDP（万亿元）',nameTextStyle:{color:'#94a3b8'},splitLine:{lineStyle:{color:'#2e3352'}}},
+        {name:'增速（%）',nameTextStyle:{color:'#94a3b8'},splitLine:{show:false}}
+      ],
+      series:[
+        {name:'GDP总量(万亿)',type:'bar',data:NATIONAL.gdp.map(v=>+(v/10000).toFixed(2)),
+         itemStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#4f8ef7'},{offset:1,color:'#1a3a6e'}])},barMaxWidth:50},
+        {name:'同比增速(%)',type:'line',yAxisIndex:1,data:rates,
+         smooth:true,lineStyle:{color:'#f7994f',width:2.5},
+         areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(247,153,79,0.3)'},{offset:1,color:'rgba(247,153,79,0)'}])},
+         itemStyle:{color:'#f7994f'},symbolSize:6,
+         markPoint:{data:[{type:'max',name:'最大值'},{type:'min',name:'最小值'}],
+           label:{color:'#fff'},itemStyle:{color:'#d62728'}}},
+      ]
+    });
+
+    ec('t1-percap').setOption({...BASE,
+      tooltip:{trigger:'axis',formatter:p=>`${p[0].axisValue}年<br>人均GDP: ${p[0].value.toLocaleString()}元`},
+      grid:{top:20,bottom:30,left:60,right:16,containLabel:true},
+      xAxis:{data:YEARS},
+      yAxis:{name:'元',nameTextStyle:{color:'#94a3b8'},splitLine:{lineStyle:{color:'#2e3352'}}},
+      series:[{
+        type:'line',data:NATIONAL.percapita,smooth:true,
+        lineStyle:{color:'#4fc98e',width:2.5},
+        areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(79,201,142,0.35)'},{offset:1,color:'rgba(79,201,142,0)'}])},
+        itemStyle:{color:'#4fc98e'},symbolSize:7,
+        markLine:{data:[{yAxis:70000,name:'7万元',lineStyle:{color:'#f7994f',type:'dashed'},
+          label:{formatter:'人均7万元（约1万美元）',color:'#f7994f'}}]}
+      }]
+    });
+  }
+
+  if (page === 't1-structure') {
+    ec('t1-stacked').setOption({...BASE,
+      tooltip:{trigger:'axis',axisPointer:{type:'cross'}},
+      legend:{data:['第一产业','第二产业','第三产业'],textStyle:{color:'#94a3b8'}},
+      grid:{top:40,bottom:30,left:60,right:16,containLabel:true},
+      xAxis:{data:YEARS},
+      yAxis:{name:'亿元',nameTextStyle:{color:'#94a3b8'},splitLine:{lineStyle:{color:'#2e3352'}}},
+      series:[
+        {name:'第一产业',type:'bar',stack:'total',data:NATIONAL.ind1,itemStyle:{color:'#4fc98e'}},
+        {name:'第二产业',type:'bar',stack:'total',data:NATIONAL.ind2,itemStyle:{color:'#4f8ef7'}},
+        {name:'第三产业',type:'bar',stack:'total',data:NATIONAL.ind3,itemStyle:{color:'#f7994f'}},
+      ]
+    });
+
+    ec('t1-ratio').setOption({...BASE,
+      tooltip:{trigger:'axis',formatter:params=>params[0].axisValue+'年<br>'+params.map(p=>`${p.marker}${p.seriesName}: ${p.value}%`).join('<br>')},
+      legend:{data:['第一产业占比','第二产业占比','第三产业占比'],textStyle:{color:'#94a3b8'}},
+      grid:{top:40,bottom:30,left:60,right:16,containLabel:true},
+      xAxis:{data:YEARS},
+      yAxis:{name:'%',nameTextStyle:{color:'#94a3b8'},min:0,max:70,splitLine:{lineStyle:{color:'#2e3352'}}},
+      series:[
+        {name:'第一产业占比',type:'line',data:NATIONAL.p1,smooth:true,lineStyle:{color:'#4fc98e',width:2},itemStyle:{color:'#4fc98e'},symbolSize:6},
+        {name:'第二产业占比',type:'line',data:NATIONAL.p2,smooth:true,lineStyle:{color:'#4f8ef7',width:2},itemStyle:{color:'#4f8ef7'},symbolSize:6},
+        {name:'第三产业占比',type:'line',data:NATIONAL.p3,smooth:true,lineStyle:{color:'#f7994f',width:2},itemStyle:{color:'#f7994f'},symbolSize:6},
+      ]
+    });
+  }
+
+  if (page === 't1-detail') {
+    const inds = Object.keys(NATIONAL.industry);
+    const colors = ['#4fc98e','#4f8ef7','#f7994f','#c084fc','#fb923c','#38bdf8','#f472b6','#a3e635','#facc15'];
+    ec('t1-ind-line').setOption({...BASE,
+      tooltip:{trigger:'axis'},
+      legend:{type:'scroll',textStyle:{color:'#94a3b8'},top:0,pageTextStyle:{color:'#94a3b8'}},
+      grid:{top:50,bottom:30,left:60,right:16,containLabel:true},
+      xAxis:{data:YEARS},
+      yAxis:{name:'亿元',nameTextStyle:{color:'#94a3b8'},splitLine:{lineStyle:{color:'#2e3352'}}},
+      series: inds.map((ind,i)=>({
+        name:ind,type:'line',data:NATIONAL.industry[ind],smooth:true,
+        lineStyle:{color:colors[i],width:2},itemStyle:{color:colors[i]},symbolSize:5,
+      }))
+    });
+
+    const lastYearData = inds.map((ind,i)=>({
+      name:ind, value:NATIONAL.industry[ind][9], itemStyle:{color:colors[i]}
+    }));
+    ec('t1-ind-pie').setOption({...BASE,
+      tooltip:{trigger:'item',formatter:'{b}: {c}亿元 ({d}%)'},
+      legend:{type:'scroll',orient:'vertical',right:10,textStyle:{color:'#94a3b8'}},
+      series:[{type:'pie',radius:['30%','60%'],center:['40%','55%'],
+        label:{formatter:'{b}\n{d}%',color:'#94a3b8'},
+        data:lastYearData
+      }]
+    });
+  }
+
+  if (page === 't2-rank') {
+    window._provBarData = PROV2024;
+    renderProvBar('all');
+  }
+
+  if (page === 't2-industry') {
+    const sorted = [...PROV2024].sort((a,b)=>b.gdp-a.gdp);
+    const names = sorted.map(d=>d.name);
+    const total = sorted.map(d=>d.gdp);
+    ec('t2-ind-stack').setOption({...BASE,
+      tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
+      legend:{data:['第一产业','第二产业','第三产业'],textStyle:{color:'#94a3b8'}},
+      grid:{top:40,bottom:10,left:60,right:16,containLabel:true},
+      xAxis:{type:'value',axisLine:{lineStyle:{color:'#2e3352'}},
+        axisLabel:{formatter:v=>(v/10000).toFixed(0)+'万亿'}},
+      yAxis:{type:'category',data:[...names].reverse(),axisLabel:{fontSize:11},axisLine:{lineStyle:{color:'#2e3352'}}},
+      series:[
+        {name:'第一产业',type:'bar',stack:'t',data:[...sorted].reverse().map(d=>d.ind1),itemStyle:{color:'#4fc98e'},barMaxWidth:18},
+        {name:'第二产业',type:'bar',stack:'t',data:[...sorted].reverse().map(d=>d.ind2),itemStyle:{color:'#4f8ef7'},barMaxWidth:18},
+        {name:'第三产业',type:'bar',stack:'t',data:[...sorted].reverse().map(d=>d.ind3),itemStyle:{color:'#f7994f'},barMaxWidth:18},
+      ]
+    });
+  }
+
+  if (page === 't2-growth') {
+    const withGrowth = PROV2024.map(d=>({
+      ...d,
+      growth: PROV2015[d.name] ? +((d.gdp-PROV2015[d.name])/PROV2015[d.name]*100).toFixed(1) : 0
+    })).sort((a,b)=>b.growth-a.growth);
+
+    ec('t2-growth-bar').setOption({...BASE,
+      tooltip:{trigger:'axis',formatter:p=>`${p[0].name}<br>十年增速: ${p[0].value}%`},
+      grid:{top:10,bottom:10,left:60,right:30,containLabel:true},
+      xAxis:{type:'value',axisLine:{lineStyle:{color:'#2e3352'}},axisLabel:{formatter:'{value}%'}},
+      yAxis:{type:'category',data:withGrowth.map(d=>d.name).reverse(),axisLabel:{fontSize:11},axisLine:{lineStyle:{color:'#2e3352'}}},
+      series:[{type:'bar',
+        data:withGrowth.map(d=>({value:d.growth,itemStyle:{color:d.growth>100?'#d62728':RC[d.r]||'#4f8ef7'}})).reverse(),
+        barMaxWidth:16,
+        label:{show:false}
+      }]
+    });
+
+    const provNames = Object.keys(PROV_SERIES);
+    const lineColors = ['#4f8ef7','#f7994f','#4fc98e','#c084fc','#fb923c','#38bdf8','#f472b6','#a3e635','#facc15','#94a3b8','#e2e8f0'];
+    ec('t2-prov-line').setOption({...BASE,
+      tooltip:{trigger:'axis'},
+      legend:{type:'scroll',textStyle:{color:'#94a3b8'},top:0,pageTextStyle:{color:'#94a3b8'}},
+      grid:{top:50,bottom:30,left:60,right:16,containLabel:true},
+      xAxis:{data:YEARS},
+      yAxis:{name:'亿元',nameTextStyle:{color:'#94a3b8'},splitLine:{lineStyle:{color:'#2e3352'}}},
+      series:provNames.map((name,i)=>({
+        name,type:'line',data:PROV_SERIES[name],smooth:true,
+        lineStyle:{color:lineColors[i],width:2},itemStyle:{color:lineColors[i]},symbolSize:5,
+      }))
+    });
+  }
+
+  if (page === 't3-sunburst') {
+    const regions = ['东部','中部','西部','东北'];
+    const sunData = regions.map(r=>({
+      name:r,
+      itemStyle:{color:RC[r]+'cc'},
+      children: PROV2024.filter(d=>d.r===r).sort((a,b)=>b.gdp-a.gdp).map(d=>({
+        name:d.name,
+        value:d.gdp,
+        children:[
+          {name:'第一产业',value:d.ind1,itemStyle:{color:'#4fc98e99'}},
+          {name:'第二产业',value:d.ind2,itemStyle:{color:'#4f8ef799'}},
+          {name:'第三产业',value:d.ind3,itemStyle:{color:'#f7994f99'}},
+        ]
+      }))
+    }));
+
+    ec('t3-sun').setOption({...BASE,
+      tooltip:{trigger:'item',formatter:p=>`${p.name}<br>${p.treePathInfo.map(t=>t.name).join(' → ')}<br>GDP: ${(p.value/10000).toFixed(2)}万亿`},
+      series:[{
+        type:'sunburst',
+        data:sunData,
+        radius:['8%','90%'],
+        nodeClick:'zoomToNode',
+        label:{rotate:'radial',color:'#fff',fontSize:10,
+          formatter:p=>p.treeDepth===2?p.name:''},
+        itemStyle:{borderWidth:1,borderColor:'rgba(0,0,0,0.3)'},
+        levels:[
+          {},
+          {r0:'8%',r:'30%',label:{rotate:'tangential',align:'center',fontSize:12,fontWeight:'bold'},
+           itemStyle:{borderWidth:2}},
+          {r0:'30%',r:'65%',label:{align:'left',fontSize:9}},
+          {r0:'65%',r:'90%',label:{show:false}},
+        ]
+      }]
+    });
+  }
+
+  if (page === 't3-corr') {
+    // 增速 vs 三产业占比变化
+    const prov2015map = {};
+    // 用已有数据（硬编码2015第三产业占比）
+    const p3_2015 = {
+      '广东':50.6,'江苏':48.6,'山东':45.3,'浙江':49.8,'河南':40.2,'四川':43.7,'湖北':43.1,
+      '福建':41.6,'上海':67.8,'湖南':44.1,'安徽':39.1,'北京':79.7,'河北':40.2,'陕西':40.7,
+      '江西':39.1,'重庆':47.7,'云南':45.1,'辽宁':46.2,'广西':38.8,'贵州':44.9,'内蒙古':40.5,
+      '新疆':44.7,'山西':53.2,'黑龙江':50.7,'吉林':38.8,'天津':52.2,'甘肃':49.2,'海南':53.3,
+      '宁夏':44.5,'青海':41.4,'西藏':53.8
+    };
+    const p2_2015 = {
+      '广东':44.8,'江苏':45.7,'山东':46.8,'浙江':46.0,'河南':48.4,'四川':44.1,'湖北':45.7,
+      '福建':50.3,'上海':31.8,'湖南':44.3,'安徽':49.7,'北京':19.7,'河北':48.3,'陕西':50.4,
+      '江西':50.3,'重庆':45.0,'云南':39.8,'辽宁':45.5,'广西':45.9,'贵州':39.5,'内蒙古':50.5,
+      '新疆':38.6,'山西':40.7,'黑龙江':31.8,'吉林':49.8,'天津':46.6,'甘肃':36.7,'海南':23.7,
+      '宁夏':47.4,'青海':49.9,'西藏':36.7
+    };
+    const p3_2024 = Object.fromEntries(PROV2024.map(d=>[d.name, +(d.ind3/d.gdp*100).toFixed(1)]));
+    const p2_2024 = Object.fromEntries(PROV2024.map(d=>[d.name, +(d.ind2/d.gdp*100).toFixed(1)]));
+
+    const scData = PROV2024.map(d=>({
+      name:d.name, r:d.r,
+      growth: PROV2015[d.name]?+((d.gdp-PROV2015[d.name])/PROV2015[d.name]*100).toFixed(1):0,
+      dp3: p3_2015[d.name]!=null ? +(p3_2024[d.name]-p3_2015[d.name]).toFixed(1):0,
+      dp2: p2_2015[d.name]!=null ? +(p2_2024[d.name]-p2_2015[d.name]).toFixed(1):0,
+    }));
+
+    const mkScatter = (id, xKey, xName) => {
+      ec(id).setOption({...BASE,
+        tooltip:{trigger:'item',formatter:p=>`${p.data[2]}<br>${xName}: ${p.data[0]}pp<br>GDP增速: ${p.data[1]}%`},
+        legend:{data:['东部','中部','西部','东北'],textStyle:{color:'#94a3b8'},top:0},
+        grid:{top:40,bottom:40,left:60,right:16,containLabel:true},
+        xAxis:{name:xName,nameTextStyle:{color:'#94a3b8'},splitLine:{lineStyle:{color:'#2e3352'}}},
+        yAxis:{name:'GDP增速(%)',nameTextStyle:{color:'#94a3b8'},splitLine:{lineStyle:{color:'#2e3352'}}},
+        series:['东部','中部','西部','东北'].map(r=>({
+          name:r,type:'scatter',
+          data:scData.filter(d=>d.r===r).map(d=>[d[xKey],d.growth,d.name]),
+          itemStyle:{color:RC[r]},symbolSize:10,
+          label:{show:true,formatter:p=>p.data[2],position:'right',fontSize:9,color:'#94a3b8'},
+        }))
+      });
+    };
+    mkScatter('t3-sc1','dp3','第三产业占比变化(pp)');
+    mkScatter('t3-sc2','dp2','第二产业占比变化(pp)');
+
+    // 热力矩阵
+    const metrics = ['GDP总量(万亿)','GDP增速(%)','第三产业占比(%)'];
+    const heatProvs = [...PROV2024].sort((a,b)=>b.gdp-a.gdp).slice(0,15);
+    const getVal = (d,m) => {
+      if (m==='GDP总量(万亿)') return +(d.gdp/10000).toFixed(2);
+      if (m==='GDP增速(%)') return PROV2015[d.name]?+((d.gdp-PROV2015[d.name])/PROV2015[d.name]*100).toFixed(1):0;
+      if (m==='第三产业占比(%)') return +(d.ind3/d.gdp*100).toFixed(1);
+      return 0;
+    };
+    const heatData = [];
+    metrics.forEach((m,mi)=>heatProvs.forEach((d,pi)=>heatData.push([pi,mi,getVal(d,m)])));
+
+    ec('t3-heat').setOption({...BASE,
+      tooltip:{formatter:p=>`${heatProvs[p.data[0]].name} · ${metrics[p.data[1]]}<br>值: ${p.data[2]}`},
+      grid:{top:40,bottom:30,left:60,right:80,containLabel:true},
+      xAxis:{type:'category',data:heatProvs.map(d=>d.name),axisLabel:{rotate:30,fontSize:10}},
+      yAxis:{type:'category',data:metrics,axisLabel:{fontSize:11}},
+      visualMap:{min:0,max:100,calculable:true,orient:'vertical',right:0,top:'center',
+        inRange:{color:['#1a3a6e','#2563eb','#60a5fa','#bfdbfe']},
+        textStyle:{color:'#94a3b8'},text:['高','低']},
+      series:[{type:'heatmap',data:heatData,label:{show:true,fontSize:9,color:'#fff'}}]
+    });
+  }
+
+  if (page === 't3-scatter') {
+    const percap2024 = {
+      '北京':228167,'上海':217140,'江苏':160694,'浙江':135565,'福建':137920,
+      '广东':111146,'内蒙古':110011,'湖北':102832,'重庆':100903,'山西':73769,
+      '天津':132143,'山东':97575,'宁夏':75484,'辽宁':78236,'西藏':75237,
+      '安徽':82694,'海南':75903,'吉林':61689,'四川':77333,'湖南':81225,
+      '广西':57071,'贵州':58685,'黑龙江':54102,'甘肃':52825,'河北':64352,
+      '河南':64888,'陕西':89915,'云南':67612,'青海':66568,'新疆':78660,'江西':75862,
+    };
+
+    const bubbleData = PROV2024.map(d=>({
+      name:d.name, r:d.r,
+      x: (percap2024[d.name]||50000)/10000,
+      y: PROV2015[d.name]?+((d.gdp-PROV2015[d.name])/PROV2015[d.name]*100).toFixed(1):0,
+      size: Math.sqrt(d.gdp/1000),
+      gdp: d.gdp,
+    }));
+
+    ec('t3-bubble').setOption({...BASE,
+      tooltip:{trigger:'item',formatter:p=>`<b>${p.data[3]}</b><br>人均GDP: ${p.data[0].toFixed(1)}万元<br>十年增速: ${p.data[1]}%<br>GDP总量: ${(p.data[4]/10000).toFixed(2)}万亿`},
+      legend:{data:['东部','中部','西部','东北'],textStyle:{color:'#94a3b8'},top:0},
+      grid:{top:50,bottom:50,left:70,right:30,containLabel:true},
+      xAxis:{name:'人均GDP（万元）',nameTextStyle:{color:'#94a3b8'},nameLocation:'end',
+        splitLine:{lineStyle:{color:'#2e3352'}}},
+      yAxis:{name:'GDP十年增速（%）',nameTextStyle:{color:'#94a3b8'},
+        splitLine:{lineStyle:{color:'#2e3352'}}},
+      series:['东部','中部','西部','东北'].map(region=>({
+        name:region,type:'scatter',
+        data:bubbleData.filter(d=>d.r===region).map(d=>[d.x,d.y,d.size,d.name,d.gdp]),
+        symbolSize:p=>p[2]*1.8,
+        itemStyle:{color:RC[region],opacity:0.8},
+        label:{show:true,formatter:p=>p.data[3],position:'top',fontSize:9,color:'#94a3b8'},
+      }))
+    });
+  }
+}
+
+// ============================================================
+// 省份柱状（带筛选）
+// ============================================================
+let _provBarChart = null;
+function renderProvBar(region) {
+  const data = region === 'all' ? PROV2024 : PROV2024.filter(d=>d.r===region);
+  const sorted = [...data].sort((a,b)=>a.gdp-b.gdp);
+  if (!_provBarChart) _provBarChart = echarts.init(document.getElementById('t2-prov-bar'), 'dark');
+  _provBarChart.setOption({
+    backgroundColor:'transparent',
+    tooltip:{trigger:'axis',formatter:p=>`${p[0].name}<br>GDP: ${(p[0].value/10000).toFixed(2)}万亿`},
+    grid:{top:10,bottom:20,left:60,right:80,containLabel:true},
+    xAxis:{type:'value',axisLabel:{formatter:v=>(v/10000).toFixed(0)+'万亿'},axisLine:{lineStyle:{color:'#2e3352'}}},
+    yAxis:{type:'category',data:sorted.map(d=>d.name),axisLabel:{fontSize:10,interval:0},axisLine:{lineStyle:{color:'#2e3352'}}},
+    series:[{
+      type:'bar',
+      data:sorted.map(d=>({value:d.gdp,itemStyle:{color:RC[d.r]}})),
+      barMaxWidth:20,
+      label:{show:true,position:'right',formatter:p=>(p.value/10000).toFixed(2),fontSize:10,color:'#94a3b8'}
+    }]
+  });
+}
+
+function filterProvBar(btn, region) {
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderProvBar(region);
+}
+
+// ============================================================
+// 3D 图表数据与初始化
+// ============================================================
+
+// 全部31省×10年 GDP数据（东→中→西排序）
+const PROV_ORDER = [
+  '北京','天津','河北','辽宁','上海','江苏','浙江','福建','山东','广东','海南',
+  '山西','吉林','黑龙江','安徽','江西','河南','湖北','湖南',
+  '内蒙古','广西','重庆','四川','贵州','云南','西藏','陕西','甘肃','青海','宁夏','新疆'
+];
+
+// 各省 GDP 序列（万亿元）——按 PROV_ORDER 顺序，每省10年
+const PROV_ALL = {
+  '北京':   [2.30,2.57,2.80,3.03,3.54,3.61,4.03,4.16,4.38,4.98],
+  '天津':   [1.65,1.79,1.85,1.88,1.41,1.41,1.57,1.63,1.67,1.80],
+  '河北':   [2.98,3.21,3.40,3.60,3.51,3.62,4.04,4.24,4.39,4.75],
+  '辽宁':   [2.87,2.22,2.34,2.53,2.49,2.51,2.76,2.90,3.02,3.26],
+  '上海':   [2.51,2.82,3.06,3.27,3.82,3.87,4.32,4.47,4.72,5.39],
+  '江苏':   [7.01,7.74,8.59,9.26,9.96,10.27,11.64,12.29,12.82,13.70],
+  '浙江':   [4.29,4.73,5.18,5.62,6.24,6.46,7.35,7.77,8.26,9.01],
+  '福建':   [2.60,2.88,3.22,3.58,4.24,4.39,4.88,5.31,5.44,5.78],
+  '山东':   [6.30,6.80,7.26,7.65,7.11,7.31,8.31,8.74,9.21,9.86],
+  '广东':   [7.28,8.09,8.97,9.73,10.77,11.08,12.44,12.91,13.57,14.16],
+  '海南':   [0.37,0.41,0.45,0.48,0.53,0.55,0.65,0.68,0.76,0.79],
+  '山西':   [1.28,1.31,1.55,1.68,1.70,1.77,2.26,2.56,2.57,2.55],
+  '吉林':   [1.41,1.48,1.49,1.51,1.17,1.23,1.32,1.31,1.35,1.44],
+  '黑龙江': [1.51,1.54,1.59,1.64,1.36,1.37,1.49,1.59,1.59,1.65],
+  '安徽':   [2.20,2.44,2.70,3.00,3.71,3.87,4.30,4.50,4.71,5.06],
+  '江西':   [1.67,1.85,2.00,2.20,2.48,2.57,2.96,3.21,3.22,3.42],
+  '河南':   [3.70,4.05,4.46,4.81,5.43,5.50,5.89,6.13,5.91,6.36],
+  '湖北':   [2.96,3.27,3.55,3.94,4.58,4.34,5.00,5.37,5.58,6.00],
+  '湖南':   [2.89,3.16,3.39,3.64,3.98,4.18,4.61,4.87,5.00,5.32],
+  '内蒙古': [1.78,1.81,1.61,1.73,1.72,1.74,2.05,2.32,2.46,2.63],
+  '广西':   [1.68,1.83,1.85,2.04,2.12,2.22,2.47,2.63,2.72,2.86],
+  '重庆':   [1.57,1.77,1.94,2.04,2.36,2.50,2.79,2.91,3.01,3.22],
+  '四川':   [3.01,3.29,3.70,4.07,4.66,4.86,5.39,5.67,6.01,6.47],
+  '贵州':   [1.05,1.18,1.35,1.48,1.68,1.78,1.96,2.02,2.09,2.27],
+  '云南':   [1.36,1.48,1.64,1.79,2.32,2.45,2.71,2.90,3.00,3.15],
+  '西藏':   [0.10,0.12,0.13,0.15,0.17,0.19,0.21,0.21,0.24,0.28],
+  '陕西':   [1.80,1.94,2.19,2.44,2.58,2.62,2.98,3.28,3.38,3.55],
+  '甘肃':   [0.68,0.72,0.75,0.82,0.87,0.90,1.02,1.12,1.19,1.30],
+  '青海':   [0.24,0.26,0.26,0.29,0.30,0.30,0.33,0.36,0.38,0.40],
+  '宁夏':   [0.29,0.32,0.34,0.37,0.37,0.39,0.45,0.51,0.53,0.55],
+  '新疆':   [0.93,0.96,1.09,1.22,1.36,1.38,1.60,1.77,1.91,2.05],
+};
+
+const REGION_OF = p => {
+  const E=['北京','天津','河北','上海','江苏','浙江','福建','山东','广东','海南'];
+  const C=['山西','安徽','江西','河南','湖北','湖南'];
+  const NE=['辽宁','吉林','黑龙江'];
+  if (E.includes(p)) return '东部';
+  if (C.includes(p)) return '中部';
+  if (NE.includes(p)) return '东北';
+  return '西部';
+};
+
+// 人均GDP 2024（元）
+const PERCAP2024 = {
+  '北京':228167,'上海':217140,'江苏':160694,'浙江':135565,'福建':137920,
+  '广东':111146,'内蒙古':110011,'湖北':102832,'重庆':100903,'山西':73769,
+  '天津':132143,'山东':97575,'宁夏':75484,'辽宁':78236,'西藏':75237,
+  '安徽':82694,'海南':75903,'吉林':61689,'四川':77333,'湖南':81225,
+  '广西':57071,'贵州':58685,'黑龙江':54102,'甘肃':52825,'河北':64352,
+  '河南':64888,'陕西':89915,'云南':67612,'青海':66568,'新疆':78660,'江西':75862,
+};
+
+let _3dBarChart = null;
+
+function init3DSurface() {
+  const chart = echarts.init(document.getElementById('t3d-surf'), 'dark');
+  const n = PROV_ORDER.length, m = YEARS.length;
+  const data = [];
+  PROV_ORDER.forEach((prov, yi) => {
+    const series = PROV_ALL[prov] || [];
+    series.forEach((gdp, xi) => data.push([xi, yi, +gdp.toFixed(2)]));
+  });
+  chart.setOption({
+    backgroundColor: 'transparent',
+    tooltip: {},
+    visualMap: {
+      show: true, dimension: 2,
+      min: 0, max: 15,
+      inRange: { color: ['#0d1b4b','#1a3a6e','#2563eb','#38bdf8','#f7994f','#d62728'] },
+      textStyle: { color: '#94a3b8' }, text: ['高','低'],
+      right: 10, top: 'center',
+    },
+    xAxis3D: {
+      type: 'category', data: YEARS,
+      name: '年份', nameTextStyle: { color: '#94a3b8' },
+      axisLabel: { color: '#94a3b8', fontSize: 10 },
+    },
+    yAxis3D: {
+      type: 'category', data: PROV_ORDER,
+      name: '省份', nameTextStyle: { color: '#94a3b8' },
+      axisLabel: { color: '#94a3b8', fontSize: 9 },
+    },
+    zAxis3D: {
+      type: 'value', name: 'GDP（万亿）',
+      nameTextStyle: { color: '#94a3b8' },
+      axisLabel: { color: '#94a3b8' },
+    },
+    grid3D: {
+      viewControl: { autoRotate: false, rotateSensitivity: 2, zoomSensitivity: 1.5, alpha: 28, beta: -62 },
+      boxWidth: 200, boxDepth: 120, boxHeight: 80,
+      light: { main: { intensity: 1.3 }, ambient: { intensity: 0.4 } },
+    },
+    series: [{
+      type: 'surface',
+      data,
+      wireframe: { show: true, lineStyle: { color: 'rgba(255,255,255,0.05)', width: 0.5 } },
+      shading: 'color',
+      label: { show: false },
+      emphasis: { label: { show: true, formatter: p => `${PROV_ORDER[p.data[1]]}\n${YEARS[p.data[0]]}年\n${p.data[2]}万亿` } },
+    }],
+  });
+  echartsMap['t3d-surf'] = chart;
+}
+
+function init3DScatter() {
+  const chart = echarts.init(document.getElementById('t3d-scat'), 'dark');
+  const regions = ['东部','中部','西部','东北'];
+  const rColors = { '东部':'#e74c3c','中部':'#2ecc71','西部':'#9b59b6','东北':'#3498db' };
+
+  const series = regions.map(r => ({
+    name: r,
+    type: 'scatter3D',
+    data: PROV2024
+      .filter(d => REGION_OF(d.name) === r)
+      .map(d => {
+        const pc = (PERCAP2024[d.name] || 60000) / 10000;
+        const growth = PROV2015[d.name] ? +((d.gdp - PROV2015[d.name]) / PROV2015[d.name] * 100).toFixed(1) : 0;
+        const ter = +(d.ind3 / d.gdp * 100).toFixed(1);
+        return { value: [pc, growth, ter, d.name, d.gdp] };
+      }),
+    symbolSize: p => Math.sqrt(p[4] / 1000) * 1.8,
+    itemStyle: { color: rColors[r], opacity: 0.85 },
+    label: { show: true, formatter: p => p.data.value[3], position: 'top', fontSize: 9, color: '#e2e8f0' },
+  }));
+
+  chart.setOption({
+    backgroundColor: 'transparent',
+    tooltip: {
+      formatter: p => `<b>${p.data.value[3]}</b><br>人均GDP: ${p.data.value[0].toFixed(1)}万元<br>十年增速: ${p.data.value[1]}%<br>第三产业占比: ${p.data.value[2]}%<br>GDP总量: ${(p.data.value[4]/10000).toFixed(2)}万亿`,
+    },
+    legend: { data: regions, textStyle: { color: '#94a3b8' }, top: 5 },
+    xAxis3D: { name: '人均GDP（万元）', nameTextStyle: { color: '#94a3b8' }, axisLabel: { color: '#94a3b8' } },
+    yAxis3D: { name: 'GDP十年增速（%）', nameTextStyle: { color: '#94a3b8' }, axisLabel: { color: '#94a3b8' } },
+    zAxis3D: { name: '第三产业占比（%）', nameTextStyle: { color: '#94a3b8' }, axisLabel: { color: '#94a3b8' } },
+    grid3D: {
+      viewControl: { autoRotate: true, autoRotateSpeed: 5, rotateSensitivity: 2, alpha: 22, beta: -50 },
+      boxWidth: 180, boxDepth: 120, boxHeight: 100,
+      light: { main: { intensity: 1.2 }, ambient: { intensity: 0.5 } },
+    },
+    series,
+  });
+  echartsMap['t3d-scat'] = chart;
+}
+
+function init3DBar() {
+  _3dBarChart = echarts.init(document.getElementById('t3d-bar3'), 'dark');
+  const provs = [...PROV2024].sort((a,b) => b.gdp - a.gdp).slice(0, 20);
+  const industries = ['第一产业','第二产业','第三产业'];
+  const iColors = ['#4fc98e','#4f8ef7','#f7994f'];
+  const data = [];
+  provs.forEach((d, xi) => {
+    [d.ind1, d.ind2, d.ind3].forEach((val, yi) => data.push([xi, yi, +(val/10000).toFixed(3)]));
+  });
+
+  _3dBarChart.setOption({
+    backgroundColor: 'transparent',
+    tooltip: {
+      formatter: p => `${provs[p.data[0]].name}<br>${industries[p.data[1]]}<br>${(p.data[2]).toFixed(3)}万亿元`,
+    },
+    visualMap: {
+      show: false, dimension: 1,
+      inRange: { color: iColors },
+      categories: [0, 1, 2],
+    },
+    xAxis3D: {
+      type: 'category', data: provs.map(d => d.name),
+      name: '省份', nameTextStyle: { color: '#94a3b8' },
+      axisLabel: { color: '#94a3b8', fontSize: 9, rotate: 20 },
+    },
+    yAxis3D: {
+      type: 'category', data: industries,
+      name: '产业', nameTextStyle: { color: '#94a3b8' },
+      axisLabel: { color: '#94a3b8', fontSize: 10 },
+    },
+    zAxis3D: {
+      type: 'value', name: '增加值（万亿）',
+      nameTextStyle: { color: '#94a3b8' },
+      axisLabel: { color: '#94a3b8' },
+    },
+    grid3D: {
+      viewControl: { autoRotate: false, rotateSensitivity: 2, alpha: 30, beta: -60 },
+      boxWidth: 220, boxDepth: 80, boxHeight: 100,
+      light: { main: { intensity: 1.4, shadow: true }, ambient: { intensity: 0.4 } },
+    },
+    series: [{
+      type: 'bar3D',
+      data: data.map(d => ({
+        value: d,
+        itemStyle: { color: iColors[d[1]], opacity: 0.88 },
+      })),
+      shading: 'lambert',
+      label: { show: false },
+      emphasis: { label: { show: true, color: '#fff', fontSize: 11 } },
+      bevelSize: 0.3, bevelSmoothness: 4,
+    }],
+  });
+  echartsMap['t3d-bar3'] = _3dBarChart;
+}
+
+function set3dBarView(btn, alpha, beta) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (_3dBarChart) {
+    _3dBarChart.setOption({ grid3D: { viewControl: { alpha, beta } } });
+  }
+}
+
+// ============================================================
+// 导航
+// ============================================================
+const pageInfo = {
+  'overview':  {title:'数据总览', desc:'2015-2024年中国GDP与产业结构完整数据集'},
+  't1-trend':  {title:'任务一 · GDP总量趋势', desc:'全国GDP总量及同比增速，2015-2024'},
+  't1-structure':{title:'任务一 · 产业结构演变', desc:'三产业占比与绝对值变化'},
+  't1-detail': {title:'任务一 · 细分行业分析', desc:'九大细分行业2015-2024增加值'},
+  't1-gallery':{title:'任务一 · 静态图表库', desc:'点击图片放大查看'},
+  't2-rank':   {title:'任务二 · 2024省份GDP排名', desc:'31省GDP总量排名，可按地区筛选'},
+  't2-industry':{title:'任务二 · 产业构成对比', desc:'2024年各省三产业构成对比'},
+  't2-growth': {title:'任务二 · 增速与增量', desc:'各省十年增速对比与代表省份走势'},
+  't2-gallery':{title:'任务二 · 静态图表库', desc:'点击图片放大查看'},
+  't3-sunburst':{title:'任务三 · 构成旭日图', desc:'地区→省份→产业，可点击下钻'},
+  't3-corr':   {title:'任务三 · 相关性分析', desc:'GDP变化与产业结构变化散点分析'},
+  't3-scatter':{title:'任务三 · 多维气泡图', desc:'人均GDP × 增速 × GDP总量三维视角'},
+  't3-gallery':{title:'任务三 · 静态图表库', desc:'点击图片放大查看'},
+  't3d-surface':{title:'3D · 省份GDP地形曲面', desc:'拖拽旋转 · 滚轮缩放 · 悬停查看数值'},
+  't3d-scatter':{title:'3D · 三维经济散点', desc:'人均GDP × 增速 × 第三产业占比'},
+  't3d-bar':    {title:'3D · 省份产业柱状', desc:'2024年各省三产业增加值立体展示'},
+};
+
+let currentPage = 'overview';
+
+function navigate(page) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(el=>{
+    el.classList.toggle('active', el.dataset.page === page);
+  });
+  const info = pageInfo[page] || {title:page, desc:''};
+  document.getElementById('page-title').textContent = info.title;
+  document.getElementById('page-desc').textContent  = info.desc;
+  document.getElementById('content').innerHTML = (pages[page]||(() => '<p>页面开发中</p>'))();
+
+  // 过滤按钮样式
+  document.querySelectorAll('.filter-btn').forEach(btn=>{
+    btn.style.cssText = 'padding:4px 12px;border-radius:6px;border:1px solid #2e3352;background:#1a1d27;color:#94a3b8;cursor:pointer;font-size:12px;';
+  });
+  document.querySelectorAll('.filter-btn.active').forEach(btn=>{
+    btn.style.background = '#1e3a5f';
+    btn.style.color = '#4f8ef7';
+    btn.style.borderColor = '#4f8ef7';
+  });
+
+  // ECharts 需要等 DOM 渲染后初始化
+  Object.values(echartsMap).forEach(c=>c.dispose && c.dispose());
+  Object.keys(echartsMap).forEach(k=>delete echartsMap[k]);
+  _provBarChart = null;
+
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    initCharts(page);
+    if (page === 't3d-surface') init3DSurface();
+    if (page === 't3d-scatter') init3DScatter();
+    if (page === 't3d-bar')     init3DBar();
+  }));
+}
+
+document.querySelectorAll('.nav-item').forEach(el=>{
+  el.addEventListener('click', ()=> navigate(el.dataset.page));
+});
+
+// 灯箱
+function lightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.add('show');
+}
+document.getElementById('lightbox-close').addEventListener('click', ()=>{
+  document.getElementById('lightbox').classList.remove('show');
+});
+document.getElementById('lightbox').addEventListener('click', e=>{
+  if (e.target === document.getElementById('lightbox')) document.getElementById('lightbox').classList.remove('show');
+});
+
+// 窗口 resize
+window.addEventListener('resize', ()=>Object.values(echartsMap).forEach(c=>c.resize()));
+
+// 初始化
+navigate('overview');
+</script>
+</body>
+</html>
